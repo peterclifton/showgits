@@ -1,0 +1,73 @@
+#!/usr/bin/perl
+# This script searches for and displays locations of git repos, 
+# at or below the current working directory.
+# Example usage $ showgits -h
+
+use strict;
+use warnings;
+use 5.22.1;
+use Cwd qw/cwd/;
+use File::Basename;
+use File::Find;
+
+sub main {
+    # INPUT PROCESSING:
+    my @options = grep /^-.+/, @ARGV;
+    @ARGV = grep ! /^-.+/, @ARGV;
+
+    if (grep /-h/, @options) { #help mode selected
+        &help;
+        exit 0;
+    } 
+
+    # Look for the git repositories 
+    my $working_dir = (grep /-f/, @options)? cwd : ".";
+    my @gits_full;
+    find( sub {push @gits_full, $File::Find::name if -d and /\.git$/;} , $working_dir); 
+
+    # Sort out the paths
+    my @gits_parent_dir_path = map {dirname($_)} @gits_full;
+    my @gits_parent_dir_name = map {(fileparse($_))[0]} @gits_parent_dir_path;
+
+    # Provide the output
+    if (grep /-v/, @options) { # verbose option
+        say foreach (@gits_full);
+    }
+    elsif (grep /--status/, @options) {
+        foreach (0 .. $#gits_full) {
+            my $git_status_output = `git --git-dir=$gits_full[$_] --work-tree=$gits_parent_dir_path[$_] status --porcelain`;
+            my $status = ((length $git_status_output) > 0)? "Changed" : "...";
+            printf "%-30s => %s\n", ($gits_parent_dir_name[$_], $status);
+        }
+
+    }
+    else { # non-verbose option (just prints the final part of the directory path)
+        say foreach (@gits_parent_dir_name);
+    }
+}
+
+sub help {
+    say "::showgits help: this script searches for and displays locations";
+    say "  of git repos, at or below the current working directory.";
+    say "  Accepts (exclusive) options -v (verbose), --status, and -h (help)";
+}
+
+
+# UTILITY STUFF
+my $line ="-"x40;
+
+sub title {
+    my $text = $_[0];
+    print "\n$line\n$text\n$line\n";
+}
+
+sub ml_title {
+    print "\n$line\n";
+    foreach (@_) {
+        print "$_\n";
+    }
+    print "$line\n\n";
+}
+
+# Call main
+main();
